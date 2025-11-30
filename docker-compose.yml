@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: 10-db
+    environment:
+      MYSQL_DATABASE: blog_db
+      MYSQL_USER: blog_user
+      MYSQL_PASSWORD: blog_password
+      MYSQL_ROOT_PASSWORD: root_password
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  app:
+    build: .
+    container_name: 10-app
+    command: gunicorn core.wsgi:application --bind 0.0.0.0:8000
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DJANGO_DB_ENGINE: django.db.backends.mysql
+      DJANGO_DB_NAME: blog_db
+      DJANGO_DB_USER: blog_user
+      DJANGO_DB_PASSWORD: blog_password
+      DJANGO_DB_HOST: db
+      DJANGO_DB_PORT: 3306
+
+  frontend:
+    build: ./frontend
+    container_name: 10-frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    depends_on:
+      - app
+
+  nginx:
+    image: nginx:1.25
+    container_name: 10-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
+    depends_on:
+      - app
+
+volumes:
+  mysql_data:
+  static_volume:
+  media_volume:
